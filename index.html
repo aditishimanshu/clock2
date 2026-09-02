@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Clock & Stopwatch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-a:#FFE3EE;
+    --bg-b:#FF9BC5;
+    --ink:#4A1942;
+    --ink-soft:#8A4A76;
+    --accent:#E84393;
+    --accent-deep:#C2185B;
+    --glass:rgba(255,255,255,0.75);
+    --glass-strong:rgba(255,255,255,0.9);
+    --glass-border:rgba(255,255,255,0.65);
+    --shadow:0 10px 30px rgba(194,24,91,0.22);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  button{font:inherit;border:none;background:none;color:inherit;}
+
+  body{
+    height:100vh;
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    color:var(--ink);
+    background-image:url('y.jpg');
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body.in-fullscreen{ position:fixed; inset:0; width:100vw; height:100vh; }
+  body.in-fullscreen:not(.controls-visible){ cursor:none; }
+
+  .hidden{display:none !important;}
+
+  .stage{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;padding:24px;}
+  .view{display:flex;flex-direction:column;align-items:center;}
+
+  .time{
+    font-family:'Fredoka',-apple-system,sans-serif;
+    font-weight:600;
+    font-size:clamp(56px,14vw,128px);
+    line-height:1;
+    letter-spacing:1px;
+    font-variant-numeric:tabular-nums;
+    text-shadow:0 6px 26px rgba(194,24,91,0.28);
+    transition:font-size .35s ease, text-shadow .35s ease;
+  }
+  .meridiem{
+    text-align:center;
+    font-size:15px;
+    color:var(--ink-soft);
+    letter-spacing:0.5px;
+    margin-top:2px;
+    transition:font-size .35s ease;
+  }
+
+  body.in-fullscreen .time{
+    font-size:clamp(90px,22vw,260px);
+    text-shadow:
+      0 0 18px rgba(232,67,147,0.85),
+      0 0 46px rgba(232,67,147,0.55),
+      0 0 110px rgba(255,155,197,0.45);
+  }
+  body.in-fullscreen .meridiem{ font-size:20px; }
+
+  .sw-controls{margin-top:22px;display:flex;gap:10px;transition:opacity .4s ease;}
+  .pill{
+    padding:11px 28px;
+    border-radius:999px;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+    background:var(--accent);
+    color:#fff;
+    box-shadow:var(--shadow);
+    transition:transform .15s ease, background .15s ease;
+  }
+  .pill:hover{transform:translateY(-2px);background:var(--accent-deep);}
+  .pill:active{transform:translateY(0);}
+  .pill.ghost{
+    background:transparent;
+    color:var(--accent-deep);
+    border:1.5px solid var(--accent-deep);
+    box-shadow:none;
+  }
+
+  .corner{position:fixed;top:22px;right:22px;display:flex;gap:10px;z-index:2;transition:opacity .4s ease;}
+  .icon-btn{
+    width:44px;height:44px;border-radius:50%;
+    background:var(--glass);
+    border:1px solid var(--glass-border);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    transition:transform .15s ease, background .15s ease;
+  }
+  .icon-btn svg{width:19px;height:19px;}
+  .icon-btn:hover{transform:scale(1.07);background:var(--glass-strong);}
+  .icon-btn:focus-visible,.pill:focus-visible{outline:2px solid var(--accent-deep);outline-offset:2px;}
+
+  body.in-fullscreen .corner{ opacity:0; pointer-events:none; }
+  body.in-fullscreen.controls-visible .corner{ opacity:1; pointer-events:auto; }
+  body.in-fullscreen .sw-controls{ opacity:0; pointer-events:none; }
+  body.in-fullscreen.controls-visible .sw-controls{ opacity:1; pointer-events:auto; }
+
+  .music{
+    position:fixed;left:50%;bottom:26px;
+    transform:translate(-50%,140%);
+    display:flex;align-items:center;gap:10px;
+    background:var(--glass);
+    border:1px solid var(--glass-border);
+    padding:8px 10px 8px 16px;
+    border-radius:999px;
+    box-shadow:var(--shadow);
+    transition:transform .3s ease;
+    z-index:2;
+    max-width:min(440px,88vw);
+  }
+  .music.open{transform:translate(-50%,0);}
+  .music input{
+    border:none;background:rgba(255,255,255,0.7);
+    padding:9px 14px;border-radius:999px;
+    font-family:inherit;font-size:13px;color:var(--ink);
+    width:200px;outline:none;
+  }
+  .music input::placeholder{color:var(--ink-soft);opacity:.75;}
+  .music-play{
+    width:38px;height:38px;flex-shrink:0;border-radius:50%;
+    background:var(--accent);color:#fff;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .music-play svg{width:16px;height:16px;}
+  .track{
+    font-size:12px;color:var(--ink-soft);
+    max-width:120px;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+
+  #yt-wrap{position:fixed;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;bottom:0;left:0;}
+
+  @media (max-width:420px){
+    .music input{width:120px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="corner" id="corner">
+    <button class="icon-btn" id="sw-btn" title="Stopwatch" aria-label="Toggle stopwatch"></button>
+    <button class="icon-btn" id="music-btn" title="Music" aria-label="Toggle music player"></button>
+    <button class="icon-btn" id="fs-btn" title="Full screen" aria-label="Toggle full screen"></button>
+  </div>
+
+  <div class="stage">
+    <div class="view" id="clock-view">
+      <div class="time" id="clock">--:--</div>
+      <div class="meridiem" id="meridiem"></div>
+    </div>
+
+    <div class="view hidden" id="stopwatch-view">
+      <div class="time" id="sw-time">00:00.00</div>
+      <div class="sw-controls">
+        <button class="pill" id="sw-toggle">Start</button>
+        <button class="pill ghost hidden" id="sw-reset">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="music" id="music-bar">
+    <input type="text" id="yt-url" placeholder="Paste a YouTube / YT Music link">
+    <button class="music-play" id="music-play" aria-label="Play or pause"></button>
+    <span class="track" id="track"></span>
+  </div>
+
+  <div id="yt-wrap"><div id="yt-player"></div></div>
+
+<script>
+  const ICONS = {
+    music: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>`,
+    expand: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`,
+    compress: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v3a2 2 0 0 1-2 2H4"/><path d="M15 3v3a2 2 0 0 0 2 2h3"/><path d="M9 21v-3a2 2 0 0 0-2-2H4"/><path d="M15 21v-3a2 2 0 0 1 2-2h3"/></svg>`,
+    play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`,
+    pause: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>`,
+    timer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>`,
+    clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`
+  };
+  document.getElementById('music-btn').innerHTML = ICONS.music;
+  document.getElementById('fs-btn').innerHTML = ICONS.expand;
+  document.getElementById('music-play').innerHTML = ICONS.play;
+
+  // ---- Clock ----
+  function updateClock(){
+    const now = new Date();
+    let h = now.getHours();
+    const m = now.getMinutes();
+    const mer = h >= 12 ? 'pm' : 'am';
+    h = h % 12; if(h === 0) h = 12;
+    document.getElementById('clock').textContent = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+    document.getElementById('meridiem').textContent = mer;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ---- View switching (clock <-> stopwatch) ----
+  const clockView = document.getElementById('clock-view');
+  const stopwatchView = document.getElementById('stopwatch-view');
+  const swBtn = document.getElementById('sw-btn');
+  swBtn.innerHTML = ICONS.timer;
+
+  let showingStopwatch = false;
+  function setView(stopwatch){
+    showingStopwatch = stopwatch;
+    clockView.classList.toggle('hidden', stopwatch);
+    stopwatchView.classList.toggle('hidden', !stopwatch);
+    swBtn.innerHTML = stopwatch ? ICONS.clock : ICONS.timer;
+    swBtn.title = stopwatch ? 'Back to clock' : 'Stopwatch';
+  }
+  swBtn.addEventListener('click', () => setView(!showingStopwatch));
+
+  // ---- Stopwatch ----
+  let swInterval = null, swElapsed = 0, swRunning = false, swStart = 0;
+  const swTimeEl = document.getElementById('sw-time');
+  const swToggle = document.getElementById('sw-toggle');
+  const swReset = document.getElementById('sw-reset');
+
+  function formatSW(ms){
+    const totalCs = Math.floor(ms/10);
+    const cs = totalCs % 100;
+    const totalSec = Math.floor(totalCs/100);
+    const s = totalSec % 60;
+    const m = Math.floor(totalSec/60);
+    return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(cs).padStart(2,'0');
+  }
+  function swTick(){ swTimeEl.textContent = formatSW(Date.now() - swStart + swElapsed); }
+
+  swToggle.addEventListener('click', () => {
+    if(!swRunning){
+      swRunning = true;
+      swStart = Date.now();
+      swInterval = setInterval(swTick, 50);
+      swToggle.textContent = 'Pause';
+      swReset.classList.remove('hidden');
+    } else {
+      swRunning = false;
+      clearInterval(swInterval);
+      swElapsed += Date.now() - swStart;
+      swToggle.textContent = 'Start';
+    }
+  });
+  swReset.addEventListener('click', () => {
+    swRunning = false;
+    clearInterval(swInterval);
+    swElapsed = 0;
+    swTimeEl.textContent = '00:00.00';
+    swToggle.textContent = 'Start';
+    swReset.classList.add('hidden');
+  });
+
+  // ---- Full screen: everything fades away except the big display ----
+  const fsBtn = document.getElementById('fs-btn');
+  const musicBar = document.getElementById('music-bar');
+  let hideTimer = null;
+
+  function revealControls(){
+    document.body.classList.add('controls-visible');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      document.body.classList.remove('controls-visible');
+    }, 2600);
+  }
+
+  function setFullscreenState(active){
+    document.body.classList.toggle('in-fullscreen', active);
+    fsBtn.innerHTML = active ? ICONS.compress : ICONS.expand;
+    if(active){
+      setView(false);
+      musicBar.classList.remove('open');
+      revealControls();
+    } else {
+      clearTimeout(hideTimer);
+      document.body.classList.remove('controls-visible');
+    }
+  }
+
+  fsBtn.addEventListener('click', async () => {
+    try{
+      if(!document.fullscreenElement){
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch(err){
+      setFullscreenState(!document.body.classList.contains('in-fullscreen'));
+    }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    setFullscreenState(!!document.fullscreenElement);
+  });
+
+  ['mousemove','touchstart','click','keydown'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      if(document.body.classList.contains('in-fullscreen')) revealControls();
+    });
+  });
+
+  // ---- Music (YouTube / YT Music links) ----
+  const musicBtn = document.getElementById('music-btn');
+  musicBtn.addEventListener('click', () => musicBar.classList.toggle('open'));
+
+  let ytPlayer = null, ytReady = false;
+  function onYouTubeIframeAPIReady(){
+    ytPlayer = new YT.Player('yt-player', {
+      height: '0', width: '0',
+      playerVars: { autoplay: 0, controls: 0 },
+      events: {
+        onReady: () => { ytReady = true; },
+        onStateChange: (e) => {
+          const btn = document.getElementById('music-play');
+          if(e.data === YT.PlayerState.PLAYING){
+            btn.innerHTML = ICONS.pause;
+            const d = ytPlayer.getVideoData();
+            if(d && d.title) document.getElementById('track').textContent = d.title;
+          } else {
+            btn.innerHTML = ICONS.play;
+          }
+        }
+      }
+    });
+  }
+  const ytTag = document.createElement('script');
+  ytTag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(ytTag);
+
+  function extractVideoId(url){
+    url = url.trim();
+    if(/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+    const m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/) || url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  document.getElementById('music-play').addEventListener('click', () => {
+    if(!ytReady) return;
+    const state = ytPlayer.getPlayerState();
+    if(state === YT.PlayerState.PLAYING){ ytPlayer.pauseVideo(); return; }
+    const id = extractVideoId(document.getElementById('yt-url').value);
+    if(id){
+      ytPlayer.loadVideoById(id);
+      document.getElementById('track').textContent = 'Loading…';
+    } else {
+      ytPlayer.playVideo();
+    }
+  });
+</script>
+</body>
+</html>
